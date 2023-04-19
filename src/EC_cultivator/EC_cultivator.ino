@@ -1,8 +1,9 @@
 /*
- * v2.2_SerialOLED
+ * v2.3
  * Copyright (C) 2022-2023 OttoLi
  * License: MIT (see LICENSE file for details)
  */
+
 #include <TaskScheduler.h>
 #include <SPI.h>
 #include <Wire.h>
@@ -10,9 +11,14 @@
 #include <Adafruit_SSD1306.h>
 #include <string.h>
 
-#define gear_A 8 //换挡电机正极继电器
-#define gear_B 9 //换挡负极继电器
-
+//#define leftm_A 3   //左刹车电机正极继电器
+//#define leftm_B 4   //左刹车电机负极继电器
+//#define rightm_A 5  //右刹车电机正极继电器
+//#define rightm_B 6  //右刹车电机负极继电器
+//#define gear_A 7    //换挡电机正极继电器
+//#define gear_B 8    //换挡电机负极继电器
+//定义左刹车正负、右刹车正负、换挡电机正负引脚
+int pin[6] = {3, 4, 5, 6, 7, 8};
 //串口输入
 char S_input;
 //声明回调函数
@@ -24,22 +30,22 @@ Task t_Reverse(0, TASK_FOREVER, &call_Reverse);
 //回调函数次数判断
 bool ti = 0;
 //前进
-void ForwardR()
+void ForwardR(int pinA, int pinB)
 {
-  digitalWrite(gear_A, HIGH);
-  digitalWrite(gear_B, LOW);
+  digitalWrite(pinA, HIGH);
+  digitalWrite(pinB, LOW);
 }
 //后退
-void ReverseR()
+void ReverseR(int pinA, int pinB)
 {
-  digitalWrite(gear_A, LOW);
-  digitalWrite(gear_B, HIGH);
+  digitalWrite(pinA, LOW);
+  digitalWrite(pinB, HIGH);
 }
 //暂停
-void Pause()
+void Pause(int pinA, int pinB)
 {
-  digitalWrite(gear_A, LOW);
-  digitalWrite(gear_B, LOW);
+  digitalWrite(pinA, LOW);
+  digitalWrite(pinB, LOW);
 }
 //标定时间全局变量
 int DT[4][4] = 
@@ -75,16 +81,20 @@ void setup()
 {
   //设置波特率
   Serial.begin(57600);
-  // 2个电机引脚pinMode设置为INPUT
-  pinMode(gear_A, OUTPUT);
-  pinMode(gear_B, OUTPUT);
+  // 6个电机引脚pinMode设置为INPUT
+  for (size_t i = 0; i < 6; i++)
+  {
+    pinMode(pin[i], OUTPUT);
+  }
   //调度器初始化
   Sch.init();
   //添加任务
   Sch.addTask(t_Forward);
   Sch.addTask(t_Reverse);
   //确保电机在初始位置
-  ForwardR();
+  ForwardR(pin[0], pin[1]);
+  ForwardR(pin[2], pin[3]);
+  ForwardR(pin[4], pin[5]);
   //初始化OLED屏幕
   display.begin(SSD1306_SWITCHCAPVCC,0x3C);   //设定屏幕型号
   display.clearDisplay();                     //清屏
@@ -243,11 +253,13 @@ void loop()
     S_input = 0;
     if (Lrunning == 0)
     {
+      ReverseR(pin[0], pin[1]);
       d_text(0, 0, "LEFT", 0);
       Lrunning = 1;
     }
     else
     {
+      ForwardR(pin[0], pin[1]);
       d_text(0, 0, "LEFT", 1);
       Lrunning = 0;
     }
@@ -258,11 +270,13 @@ void loop()
     S_input = 0;
     if (Rrunning == 0)
     {
+      ReverseR(pin[2], pin[3]);
       d_text(5, 0, "RIGHT", 0);
       Rrunning = 1;
     }
     else
     {
+      ForwardR(pin[2], pin[3]);
       d_text(5, 0, "RIGHT", 1);
       Rrunning = 0;
     }
@@ -276,14 +290,14 @@ void call_Forward()
   //若首次进入回调
   if (ti == 0)
   {
-    ForwardR();   //前进使能
+    ForwardR(pin[4], pin[5]);   //前进使能
     running = 1;  //标记运动状态
     ti = 1;       //标记回调状态
   }
   //若第2次进入回调
   else
   {
-    Pause();              //暂停运动
+    Pause(pin[4], pin[5]);              //暂停运动
     running = 0;          //运动状态归零
     ti = 0;               //回调状态归零
     t_Forward.disable();  //结束任务
@@ -294,14 +308,14 @@ void call_Reverse()
   //若首次进入回调
   if (ti == 0)
   {
-    ReverseR();   //前进使能
+    ReverseR(pin[4], pin[5]);   //前进使能
     running = 1;  //标记运动状态
     ti = 1;       //标记回调状态
   }
   //若第2次进入回调
   else
   {
-    Pause();              //暂停运动
+    Pause(pin[4], pin[5]);              //暂停运动
     running = 0;          //运动状态归零
     ti = 0;               //回调状态归零
     t_Reverse.disable();  //结束任务
