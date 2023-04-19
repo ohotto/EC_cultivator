@@ -1,71 +1,29 @@
 /*
- * v1.0
+ * v2.0
  * Copyright (C) 2022-2023 OttoLi
  * License: MIT (see LICENSE file for details)
  */
 #include <TaskScheduler.h>
-// 4个输入继电器引脚
 #define gear_A 8 //换挡电机正极继电器
 #define gear_B 9 //换挡负极继电器
+// 4个开关信号引脚
 #define K1 4
 #define K2 5
 #define K3 6
 #define K4 7
-// 4个输入继电器引脚状态
+// 开关信号引脚状态缓存
 boolean kk1 = LOW;
 boolean kk2 = LOW;
 boolean kk3 = LOW;
 boolean kk4 = LOW;
-// 4个输入继电器引脚上一个状态
-boolean kk1_last = kk1;
-boolean kk2_last = kk2;
-boolean kk3_last = kk3;
-boolean kk4_last = kk4;
-//回调函数次数判断
-bool i12 = 0;
-bool i23 = 0;
-bool i34 = 0;
-bool i13 = 0;
-bool i24 = 0;
-bool i14 = 0;
-bool i43 = 0;
-bool i32 = 0;
-bool i42 = 0;
-bool i21 = 0;
-bool i31 = 0;
-bool i41 = 0;
 //声明回调函数
-void task_12();
-void task_23();
-void task_34();
-void task_13();
-void task_24();
-void task_14();
-void task_43();
-void task_32();
-void task_42();
-void task_21();
-void task_31();
-void task_41();
+void call_Forward();
+void call_Reverse();
 //声明计划任务
-Task t12(469, TASK_FOREVER, &task_12);
-Task t23(317, TASK_FOREVER, &task_23);
-Task t34(683, TASK_FOREVER, &task_34);
-Task t13(786, TASK_FOREVER, &task_13);
-Task t24(1000, TASK_FOREVER, &task_24);
-Task t14(1469, TASK_FOREVER, &task_14);
-Task t43(683, TASK_FOREVER, &task_43);
-Task t32(317, TASK_FOREVER, &task_32);
-Task t42(1000, TASK_FOREVER, &task_42);
-Task t21(500, TASK_FOREVER, &task_21);
-Task t31(815, TASK_FOREVER, &task_31);
-Task t41(1500, TASK_FOREVER, &task_41);
-//调度器声明
-Scheduler Sch;
-//位置flag
-int flag = 1;
-bool running = 0;
-
+Task t_Forward(0, TASK_FOREVER, &call_Forward);
+Task t_Reverse(0, TASK_FOREVER, &call_Reverse);
+//回调函数次数判断
+bool ti = 0;
 //前进
 void ForwardR()
 {
@@ -75,7 +33,6 @@ void ForwardR()
 //后退
 void ReverseR()
 {
-
   digitalWrite(gear_A, LOW);
   digitalWrite(gear_B, HIGH);
 }
@@ -85,362 +42,198 @@ void Pause()
   digitalWrite(gear_A, LOW);
   digitalWrite(gear_B, LOW);
 }
+//标定时间全局变量
+int DT[4][4] = 
+{
+  {0,469,786,1469},
+  {500,0,317,1000},
+  {815,317,0,683},
+  {1500,1000,683,0}
+};
+//调度器声明
+Scheduler Sch;
+//当前位置flag
+int flag = 1;
+//运动中flag
+bool running = 0;
 
 void setup()
 {
-  Serial.begin(57600); //设置波特率
-  // 4个控制继电器pinMode设置为INPUT
+  //设置波特率
+  Serial.begin(57600);
+  // 4个开关信号pinMode设置为INPUT
   pinMode(K1, INPUT);
   pinMode(K2, INPUT);
   pinMode(K3, INPUT);
   pinMode(K4, INPUT);
+  // 2个电机引脚pinMode设置为INPUT
+  pinMode(gear_A, OUTPUT);
+  pinMode(gear_B, OUTPUT);
   //调度器初始化
   Sch.init();
   //添加任务
-  Sch.addTask(t12);
-  Sch.addTask(t23);
-  Sch.addTask(t34);
-  Sch.addTask(t13);
-  Sch.addTask(t24);
-  Sch.addTask(t14);
-  Sch.addTask(t43);
-  Sch.addTask(t32);
-  Sch.addTask(t42);
-  Sch.addTask(t21);
-  Sch.addTask(t31);
-  Sch.addTask(t41);
-  pinMode(gear_A, OUTPUT);
-  pinMode(gear_B, OUTPUT);
+  Sch.addTask(t_Forward);
+  Sch.addTask(t_Reverse);
+  //确保电机在初始位置
   ForwardR();
   //获取4个输入继电器引脚状态
   kk1 = digitalRead(K1);
   kk2 = digitalRead(K2);
   kk3 = digitalRead(K3);
   kk4 = digitalRead(K4);
-  kk1_last = kk1;
-  kk2_last = kk2;
-  kk3_last = kk3;
-  kk4_last = kk4;
 }
 
 void loop()
 {
   Sch.execute();
-  //delay(50);
-  //获取4个输入继电器引脚状态
-  kk1 = digitalRead(K1);
-  kk2 = digitalRead(K2);
-  kk3 = digitalRead(K3);
-  kk4 = digitalRead(K4);
-  //判断是否改变状态
-  if (kk1 != kk1_last)
+  //若按键1被按下
+  if (digitalRead(K1) != kk1)
   {
-    Serial.print("Key A\n");
-    kk1_last = kk1;
+    Serial.print("Press Key 1\n");   //debug
+    kk1 = digitalRead(K1);           //重置kk1状态缓存
+    //判断电机是否正在运动
     if (running == 0)
     {
       switch (flag)
       {
-      case 1:
-        break;
-      case 2:
-        t21.enable();
-        break;
-      case 3:
-        t31.enable();
-        break;
-      case 4:
-        t41.enable();
-        break;
+        case 1:
+          break;
+        case 2:
+          t_Forward.setInterval(DT[1][0]);  //设定标定时间
+          t_Forward.enable();               //开启任务
+          break;
+        case 3:
+          t_Forward.setInterval(DT[2][0]);
+          t_Forward.enable();
+          break;
+        case 4:
+          t_Forward.setInterval(DT[3][0]);
+          t_Forward.enable();
+          break;
       }
-      flag = 1;
+      flag = 1; //更新当前位置
     }
   }
-  if (kk2 != kk2_last)
+  //若按键2被按下
+  if (digitalRead(K2) != kk2)
   {
-    Serial.print("Key B\n");
-    kk2_last = kk2;
+    Serial.print("Press Key 2\n");   //debug
+    kk2 = digitalRead(K2);           //重置kk2状态缓存
+    //判断电机是否正在运动
     if (running == 0)
     {
       switch (flag)
       {
-      case 1:
-        t12.enable();
-        break;
-      case 2:
-        break;
-      case 3:
-        t32.enable();
-        break;
-      case 4:
-        t42.enable();
-        break;
+        case 1:
+          t_Reverse.setInterval(DT[0][1]);  //设定标定时间
+          t_Reverse.enable();               //开启任务
+          break;
+        case 2:
+          break;
+        case 3:
+          t_Forward.setInterval(DT[2][1]);
+          t_Forward.enable();
+          break;
+        case 4:
+          t_Forward.setInterval(DT[3][1]);
+          t_Forward.enable();
+          break;
       }
-      flag = 2;
+      flag = 2; //更新当前位置
     }
   }
-  if (kk3 != kk3_last)
+  //若按键3被按下
+  if (digitalRead(K3) != kk3)
   {
-    Serial.print("Key C\n");
-    kk3_last = kk3;
+    Serial.print("Press Key 3\n");   //debug
+    kk3 = digitalRead(K3);           //重置kk3状态缓存
+    //判断电机是否正在运动
     if (running == 0)
     {
       switch (flag)
       {
-      case 1:
-        t13.enable();
-        break;
-      case 2:
-        t23.enable();
-        break;
-      case 3:
-        break;
-      case 4:
-        t43.enable();
-        break;
+        case 1:
+          t_Reverse.setInterval(DT[0][2]);  //设定标定时间
+          t_Reverse.enable();               //开启任务
+          break;
+        case 2:
+          t_Reverse.setInterval(DT[1][2]);
+          t_Reverse.enable();
+          break;
+        case 3:
+          break;
+        case 4:
+          t_Forward.setInterval(DT[3][2]);
+          t_Forward.enable();
+          break;
       }
-      flag = 3;
+      flag = 3; //更新当前位置
     }
   }
-  if (kk4 != kk4_last)
+  //若按键4被按下
+  if (digitalRead(K4) != kk4)
   {
-    Serial.print("Key D\n");
-    kk4_last = kk4;
+    Serial.print("Press Key 4\n");   //debug
+    kk4 = digitalRead(K4);           //重置kk4状态缓存
+    //判断电机是否正在运动
     if (running == 0)
     {
       switch (flag)
       {
-      case 1:
-        t14.enable();
-        break;
-      case 2:
-        t24.enable();
-        break;
-      case 3:
-        t34.enable();
-        break;
-      case 4:
-        break;
+        case 1:
+          t_Reverse.setInterval(DT[0][3]);  //设定标定时间
+          t_Reverse.enable();               //开启任务
+          break;
+        case 2:
+          t_Reverse.setInterval(DT[1][3]);
+          t_Reverse.enable();
+          break;
+        case 3:
+          t_Reverse.setInterval(DT[2][3]);
+          t_Reverse.enable();
+          break;
+        case 4:
+          break;
       }
-      flag = 4;
+      flag = 4; //更新当前位置
     }
   }
 }
 
 //回调函数
-void task_12()
+void call_Forward()
 {
-  if (i12 == 0)
+  //若首次进入回调
+  if (ti == 0)
   {
-    Serial.print("A -> B Start\n");
-    ReverseR();
-    running = 1;
-    i12 = 1;
+    ForwardR();   //前进使能
+    running = 1;  //标记运动状态
+    ti = 1;       //标记回调状态
   }
+  //若第2次进入回调
   else
   {
-    Serial.print("A -> B End\n");
-    Pause();
-    running = 0;
-    i12 = 0;
-    t12.disable();
+    Pause();              //暂停运动
+    running = 0;          //运动状态归零
+    ti = 0;               //回调状态归零
+    t_Forward.disable();  //结束任务
   }
 }
-void task_23()
+void call_Reverse()
 {
-  if (i23 == 0)
+  //若首次进入回调
+  if (ti == 0)
   {
-    Serial.print("B -> C Start\n");
-    ReverseR();
-    running = 1;
-    i23 = 1;
+    ReverseR();   //前进使能
+    running = 1;  //标记运动状态
+    ti = 1;       //标记回调状态
   }
+  //若第2次进入回调
   else
   {
-    Serial.print("B -> C End\n");
-    Pause();
-    running = 0;
-    i23 = 0;
-    t23.disable();
-  }
-}
-void task_34()
-{
-  if (i34 == 0)
-  {
-    Serial.print("C -> D Start\n");
-    ReverseR();
-    running = 1;
-    i34 = 1;
-  }
-  else
-  {
-    Serial.print("C -> D End\n");
-    Pause();
-    running = 0;
-    i34 = 0;
-    t34.disable();
-  }
-}
-void task_13()
-{
-  if (i13 == 0)
-  {
-    Serial.print("A -> C Start\n");
-    ReverseR();
-    running = 1;
-    i13 = 1;
-  }
-  else
-  {
-    Serial.print("A -> C End\n");
-    Pause();
-    running = 0;
-    i13 = 0;
-    t13.disable();
-  }
-}
-void task_24()
-{
-  if (i24 == 0)
-  {
-    Serial.print("B -> D Start\n");
-    ReverseR();
-    running = 1;
-    i24 = 1;
-  }
-  else
-  {
-    Serial.print("B -> D End\n");
-    Pause();
-    running = 0;
-    i24 = 0;
-    t24.disable();
-  }
-}
-void task_14()
-{
-  if (i14 == 0)
-  {
-    Serial.print("A -> D Start\n");
-    ReverseR();
-    running = 1;
-    i14 = 1;
-  }
-  else
-  {
-    Serial.print("A -> D End\n");
-    Pause();
-    running = 0;
-    i14 = 0;
-    t14.disable();
-  }
-}
-void task_43()
-{
-  if (i43 == 0)
-  {
-    Serial.print("D -> C Start\n");
-    ForwardR();
-    running = 1;
-    i43 = 1;
-  }
-  else
-  {
-    Serial.print("D -> C End\n");
-    Pause();
-    running = 0;
-    i43 = 0;
-    t43.disable();
-  }
-}
-void task_32()
-{
-  if (i32 == 0)
-  {
-    Serial.print("C -> B Start\n");
-    ForwardR();
-    running = 1;
-    i32 = 1;
-  }
-  else
-  {
-    Serial.print("C -> B End\n");
-    Pause();
-    running = 0;
-    i32 = 0;
-    t32.disable();
-  }
-}
-void task_42()
-{
-  if (i42 == 0)
-  {
-    Serial.print("D -> B Start\n");
-    ForwardR();
-    running = 1;
-    i42 = 1;
-  }
-  else
-  {
-    Serial.print("D -> B End\n");
-    Pause();
-    running = 0;
-    i42 = 0;
-    t42.disable();
-  }
-}
-void task_21()
-{
-  if (i21 == 0)
-  {
-    Serial.print("B -> A Start\n");
-    ForwardR();
-    running = 1;
-    i21 = 1;
-  }
-  else
-  {
-    Serial.print("B -> A End\n");
-    Pause();
-    running = 0;
-    i21 = 0;
-    t21.disable();
-  }
-}
-void task_31()
-{
-  if (i31 == 0)
-  {
-    Serial.print("C -> A Start\n");
-    ForwardR();
-    running = 1;
-    i31 = 1;
-  }
-  else
-  {
-    Serial.print("C -> A End\n");
-    Pause();
-    running = 0;
-    i31 = 0;
-    t31.disable();
-  }
-}
-void task_41()
-{
-  if (i41 == 0)
-  {
-    Serial.print("D -> A Start\n");
-    ForwardR();
-    running = 1;
-    i41 = 1;
-  }
-  else
-  {
-    Serial.print("D -> A End\n");
-    Pause();
-    running = 0;
-    i41 = 0;
-    t41.disable();
+    Pause();              //暂停运动
+    running = 0;          //运动状态归零
+    ti = 0;               //回调状态归零
+    t_Reverse.disable();  //结束任务
   }
 }
