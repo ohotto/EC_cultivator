@@ -1,21 +1,13 @@
 /*
- * v2.0
+ * v2.1_Serials
  * Copyright (C) 2022-2023 OttoLi
  * License: MIT (see LICENSE file for details)
  */
 #include <TaskScheduler.h>
 #define gear_A 8 //换挡电机正极继电器
 #define gear_B 9 //换挡负极继电器
-// 4个开关信号引脚
-#define K1 4
-#define K2 5
-#define K3 6
-#define K4 7
-// 开关信号引脚状态缓存
-boolean kk1 = LOW;
-boolean kk2 = LOW;
-boolean kk3 = LOW;
-boolean kk4 = LOW;
+//串口输入
+char S_input;
 //声明回调函数
 void call_Forward();
 void call_Reverse();
@@ -61,11 +53,6 @@ void setup()
 {
   //设置波特率
   Serial.begin(57600);
-  // 4个开关信号pinMode设置为INPUT
-  pinMode(K1, INPUT);
-  pinMode(K2, INPUT);
-  pinMode(K3, INPUT);
-  pinMode(K4, INPUT);
   // 2个电机引脚pinMode设置为INPUT
   pinMode(gear_A, OUTPUT);
   pinMode(gear_B, OUTPUT);
@@ -76,21 +63,18 @@ void setup()
   Sch.addTask(t_Reverse);
   //确保电机在初始位置
   ForwardR();
-  //获取4个输入继电器引脚状态
-  kk1 = digitalRead(K1);
-  kk2 = digitalRead(K2);
-  kk3 = digitalRead(K3);
-  kk4 = digitalRead(K4);
 }
 
 void loop()
 {
   Sch.execute();
-  //若按键1被按下
-  if (digitalRead(K1) != kk1)
+  //串口控制函数段
+  if (Serial.available() > 0) {
+    S_input = Serial.read();
+  }
+  if (S_input == '1')
   {
     Serial.print("Press Key 1\n");   //debug
-    kk1 = digitalRead(K1);           //重置kk1状态缓存
     //判断电机是否正在运动
     if (running == 0)
     {
@@ -115,10 +99,9 @@ void loop()
     }
   }
   //若按键2被按下
-  if (digitalRead(K2) != kk2)
+  if (S_input == '2')
   {
     Serial.print("Press Key 2\n");   //debug
-    kk2 = digitalRead(K2);           //重置kk2状态缓存
     //判断电机是否正在运动
     if (running == 0)
     {
@@ -143,10 +126,9 @@ void loop()
     }
   }
   //若按键3被按下
-  if (digitalRead(K3) != kk3)
+  if (S_input == '3')
   {
     Serial.print("Press Key 3\n");   //debug
-    kk3 = digitalRead(K3);           //重置kk3状态缓存
     //判断电机是否正在运动
     if (running == 0)
     {
@@ -171,10 +153,9 @@ void loop()
     }
   }
   //若按键4被按下
-  if (digitalRead(K4) != kk4)
+  if (S_input == '4')
   {
     Serial.print("Press Key 4\n");   //debug
-    kk4 = digitalRead(K4);           //重置kk4状态缓存
     //判断电机是否正在运动
     if (running == 0)
     {
