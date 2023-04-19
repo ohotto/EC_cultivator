@@ -1,5 +1,5 @@
 /*
- * v2.3
+ * v2.4
  * Copyright (C) 2022-2023 OttoLi
  * License: MIT (see LICENSE file for details)
  */
@@ -17,8 +17,8 @@
 //#define rightm_B 6  //右刹车电机负极继电器
 //#define gear_A 7    //换挡电机正极继电器
 //#define gear_B 8    //换挡电机负极继电器
-//定义左刹车正负、右刹车正负、换挡电机正负引脚
-int pin[6] = {3, 4, 5, 6, 7, 8};
+//定义左刹车正负、换挡电机正负、右刹车正负引脚
+int pin[6] = {3, 4, 7, 8, 5, 6};
 //串口输入
 char S_input;
 //声明回调函数
@@ -80,7 +80,7 @@ void d_text(int x, int y, char text[], bool white);
 void setup()
 {
   //设置波特率
-  Serial.begin(57600);
+  Serial.begin(9600);
   // 6个电机引脚pinMode设置为INPUT
   for (size_t i = 0; i < 6; i++)
   {
@@ -112,7 +112,7 @@ void loop()
   if (Serial.available() > 0) {
     S_input = Serial.read();
   }
-  if (S_input == '1')
+  if (S_input == 'A')
   {
     S_input = 0;
     Serial.print("Press Key 1\n");   //debug
@@ -146,7 +146,7 @@ void loop()
     }
   }
   //若按键2被按下
-  if (S_input == '2')
+  if (S_input == 'C')
   {
     S_input = 0;
     Serial.print("Press Key 2\n");   //debug
@@ -180,7 +180,7 @@ void loop()
     }
   }
   //若按键3被按下
-  if (S_input == '3')
+  if (S_input == 'E')
   {
     S_input = 0;
     Serial.print("Press Key 3\n");   //debug
@@ -214,7 +214,7 @@ void loop()
     }
   }
   //若按键4被按下
-  if (S_input == '4')
+  if (S_input == 'G')
   {
     S_input = 0;
     Serial.print("Press Key 4\n");   //debug
@@ -248,7 +248,7 @@ void loop()
     }
   }
   //若左刹车控制按钮按下
-  if (S_input == 'l')
+  if (S_input == 'I')
   {
     S_input = 0;
     if (Lrunning == 0)
@@ -265,7 +265,7 @@ void loop()
     }
   }
   //若右刹车控制按钮按下
-  if (S_input == 'r')
+  if (S_input == 'K')
   {
     S_input = 0;
     if (Rrunning == 0)

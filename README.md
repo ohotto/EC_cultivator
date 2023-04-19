@@ -1,4 +1,4 @@
-# EC_cultivator
+# EC_cultivator（Electronically Controlled Cultivator）
 
 旋耕机电控改装项目备份
 
